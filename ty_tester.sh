@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 #### Description: UCSD CSE100 Spring 2016 PA2 Self-Tester for Students.
-#### Usage: See README.md.
+#### Usage: 
+#### 1. In the directory that contains the script, run `chmod u+x ty_tester.sh` so that it is executable. 
+####   * See [chmod](https://en.wikipedia.org/wiki/Chmod) on Wikipedia. 
+#### 2. Run `./ty_tester.sh`
 
 set -o nounset
 
