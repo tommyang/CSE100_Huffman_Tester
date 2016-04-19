@@ -56,11 +56,11 @@ compression_ratio_test() {
   # The if condition works because BSD `stat` does not have the `--version` flag so the return code will tell
   # See https://en.wikipedia.org/wiki/GNU_toolchain & https://wiki.freebsd.org/BSDToolchain
   if stat --version &>/dev/null; then
-    # GNU stat
+    # GNU `stat`
     local ref_cmp_filesize="$(stat -c%s "${TMP_DIR}/${REF_CMP}")"
     local your_cmp_filesize="$(stat -c%s "${TMP_DIR}/${YOUR_CMP}")"
   else
-    # BSD stat
+    # BSD `stat`
     local ref_cmp_filesize="$(stat -f%z "${TMP_DIR}/${REF_CMP}")"
     local your_cmp_filesize="$(stat -f%z "${TMP_DIR}/${YOUR_CMP}")"
   fi
@@ -89,7 +89,7 @@ cleanup () {
 }
 trap cleanup EXIT # trap is a nice feature. Upon EXIT, cleanup function is run
 
-# use make to compile your code, check for failure
+# use `make` to compile your code, check return code for failure
 if ! make; then
     echo -e "${TXT_RED}Failed to compile using make. ${TXT_RESET} No test was run. "
     exit 1 # unsuccessful
@@ -108,17 +108,18 @@ fi
 # loop through all the input files found in in the input file directory
 for input_file in "${INPUT_DIR}"/*; do
   echo -ne "Testing \"${input_file}\"... \t "
-  # perform compress and uncompress
+  # perform `compress` and `uncompress`, suppress output
   ./compress "${input_file}" "${TMP_DIR}/${YOUR_CMP}" &> /dev/null
   ./uncompress "${TMP_DIR}/${YOUR_CMP}" "${TMP_DIR}/${YOUR_UNCMP}" &> /dev/null
-  # since refcompress is compiled on ieng6
+  # since `refcompress` is compiled and run on ieng6
   if is_on_ieng6; then
+    # perform `refcompress`, suppress output
     ./refcompress "${input_file}" "${TMP_DIR}/${REF_CMP}" &> /dev/null
     # ./refuncompress "${TMP_DIR}/${REF_CMP}" "${TMP_DIR}/${REF_UNCMP}" &> /dev/null
   fi
-  # `cmp` checks if the files are identical
+  # `cmp`'s return code indicates if the files are identical
   if cmp -s "${input_file}" "${TMP_DIR}/${YOUR_UNCMP}"; then
-    # since refcompress is compiled on ieng6
+    # since `refcompress` is compiled and run on ieng6
     if is_on_ieng6; then
       compression_ratio_test
     else
@@ -132,4 +133,4 @@ for input_file in "${INPUT_DIR}"/*; do
 done
 
 echo "All tests finished. "
-exit 0
+exit 0 # successful
