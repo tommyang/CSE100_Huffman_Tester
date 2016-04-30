@@ -25,14 +25,14 @@ YOUR_UNCMP="ty_test_your_uncmp.tmp"
 RAND_TXT="ty_large_random_input.txt"
 RAND_BIN="ty_large_random_input.bin"
 
-# This creates a temporary directory to store the generated test files
+# `mktemp -d` creates a temporary directory to store the generated test files
 TMP_DIR="$(mktemp -d)"
 
 # I am using `hostname` to determine if the script is running on ieng6, not robust, but works
 [[ $(hostname -s) = ieng6* ]]; ON_IENG6=$?
 
 # This function takes a size argument (byte) to generate random text & binary files using `openssl rand`
-# `openssl rand` is faster than using `/dev/urandom`
+# Using `openssl rand` is faster than using `/dev/urandom` on ieng6
 # See https://en.wikipedia.org/wiki/OpenSSL https://en.wikipedia.org/wiki//dev/random
 generate_random_input_files() {
   local input_file_size="$1" # the size argument
@@ -51,11 +51,18 @@ generate_random_input_files() {
 # This function uses stat to get the file sizes of your compressed version and the reference compressed version
 compression_ratio_test() {
   # This if statement is to test whether the machine has GNU `stat` or BSD `stat` since the flags are different
-  # ieng6 has GNU `stat`, OS X has BSD `stat`. 
-  # Actually, `compression_ratio_test` is run only when on ieng6, see below. But it is nice to have portable code. 
   # The if condition works because BSD `stat` does not have the `--version` flag so the return code will tell
+  # ieng6 has GNU `stat`, OS X has BSD `stat`. 
+  # In this version of the script, `compression_ratio_test` is run only when you are on ieng6. 
+  # This is because the `refcompress` executable provided to you is compiled on ieng6.
+  # So this GNU/BSD `stat` detection is not that useful for you. 
+  # However, it is nice to have code that works on more platfroms. (Plus I do run `refcompress` on OS X :-P)
   # See https://en.wikipedia.org/wiki/GNU_toolchain & https://wiki.freebsd.org/BSDToolchain
-  if stat --version &>/dev/null; then
+  # The main reason why there are different toolchains? Different licensing philosophies. 
+  # For more info on BSD vs GNU if you are interested: 
+  # https://www.freebsd.org/doc/en/articles/bsdl-gpl/article.html
+  # http://www.gnu.org/licenses/bsd.en.html
+  if stat --version 1>/dev/null 2>&1; then
     # GNU `stat`
     local ref_cmp_filesize="$(stat -c%s "${TMP_DIR}/${REF_CMP}")"
     local your_cmp_filesize="$(stat -c%s "${TMP_DIR}/${YOUR_CMP}")"
@@ -98,7 +105,7 @@ echo -e "${TXT_GREEN}Compiled successfully using make. ${TXT_RESET}"
 
 # generates a random binary input file and a random text input file for testing 
 if is_on_ieng6; then
-  echo -e "${TXT_CYAN}NOTE: On ieng6, the random files generated are of smaller size for performance reason. ${TXT_RESET}"
+  echo -e "${TXT_CYAN}NOTE: On ieng6, the random files generated are of smaller sizes for performance reason. ${TXT_RESET}"
   generate_random_input_files 5242880 # since ieng6 is slow
 else
   generate_random_input_files 10485760
