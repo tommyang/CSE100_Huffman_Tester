@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-#### Description: UCSD CSE100 Spring 2016 PA2 Self-Tester for Students.
-#### Usage: 
-#### 1. In the directory that contains the script, run `chmod u+x ty_tester.sh` so that it is executable. 
-####   * See [chmod](https://en.wikipedia.org/wiki/Chmod) on Wikipedia. 
-#### 2. Run `./ty_tester.sh`
+#### Description: UCSD CSE100 Fall 2016 PA3 Self-Tester for Students.
+#### Usage:
+#### 1. In the directory that contains the script, run `chmod u+x ty_tester.sh` so that it is executable.
+####   * See [chmod](https://en.wikipedia.org/wiki/Chmod) on Wikipedia.
+#### 2. Run `./ty_tester.sh -r` on ieng6 or `./ty_tester.sh` on machines that cannot run `refcompress`
 
 set -o nounset
 
@@ -17,22 +17,19 @@ TXT_YELLOW="$(tput setaf 3 2> /dev/null)"
 TXT_CYAN="$(tput setaf 6 2> /dev/null)"
 
 # Variables
-INPUT_DIR="pa2_input_files"
-REF_CMP="ty_test_ref_cmp.tmp"
+INPUT_DIR="pa3_input_files"
 YOUR_CMP="ty_test_your_cmp.tmp"
-REF_UNCMP="ty_test_ref_uncmp.tmp"
 YOUR_UNCMP="ty_test_your_uncmp.tmp"
+REF_CMP="ty_test_ref_cmp.tmp"
 RAND_TXT="ty_large_random_input.txt"
 RAND_BIN="ty_large_random_input.bin"
+RAND_SIZE=$(( 5 * 2**20 )) # 5 MiB
 
 # `mktemp -d` creates a temporary directory to store the generated test files
 TMP_DIR="$(mktemp -d)"
 
-# I am using `hostname` to determine if the script is running on ieng6, not robust, but works
-[[ $(hostname -s) = ieng6* ]]; ON_IENG6=$?
-
-# This function takes a size argument (byte) to generate random text & binary files using `openssl rand`
-# Using `openssl rand` is faster than using `/dev/urandom` on ieng6
+# This function takes in a size argument and generates random text & binary files of that size in byte
+# Using `openssl rand` is faster than using `/dev/urandom`, at least on ieng6
 # See https://en.wikipedia.org/wiki/OpenSSL https://en.wikipedia.org/wiki//dev/random
 generate_random_input_files() {
   local input_file_size="$1" # the size argument
@@ -40,36 +37,34 @@ generate_random_input_files() {
     echo "generate_random_input_files: No size was specified. Exiting. ";
     exit 1
   fi
-  echo -ne "Generating random input text & binary files of size ${input_file_size}... "
-  # Base64 is used to produce text file, see: https://en.wikipedia.org/wiki/Base64
-  # The * 3/4 part accounts for Base64 overhead so that the output is of the correct size
-  openssl rand -out "${INPUT_DIR}/${RAND_TXT}" -base64 $(( ${input_file_size} * 3/4 ))
-  openssl rand -out "${INPUT_DIR}/${RAND_BIN}" ${input_file_size}
-  echo -e "[${TXT_GREEN}DONE${TXT_RESET}]"
+  echo -ne "Generating random input text & binary files... "
+  # Base64 is used to produce the random text file, see: https://en.wikipedia.org/wiki/Base64
+  # The "* 3 / 4" part roughly accounts for Base64 overhead so that the output is of the correct size
+  openssl rand -out "${INPUT_DIR}/${RAND_TXT}" -base64 $(( input_file_size * 3 / 4 ))
+  openssl rand -out "${INPUT_DIR}/${RAND_BIN}" "${input_file_size}"
+  echo "Done. "
 }
 
 # This function uses stat to get the file sizes of your compressed version and the reference compressed version
 compression_ratio_test() {
-  # This if statement is to test whether the machine has GNU `stat` or BSD `stat` since the flags are different
+  local ref_cmp_filesize
+  local your_cmp_filesize
+  # This if statement is to test whether the machine has GNU `stat` or BSD `stat` since their flags are different
   # The if condition works because BSD `stat` does not have the `--version` flag so the return code will tell
-  # ieng6 has GNU `stat`, OS X has BSD `stat`. 
-  # In this version of the script, `compression_ratio_test` is run only when you are on ieng6. 
-  # This is because the `refcompress` executable provided to you is compiled on ieng6.
-  # So this GNU/BSD `stat` detection is not that useful for you. 
-  # However, it is nice to have code that works on more platfroms. (Plus I do run `refcompress` on OS X :-P)
+  #
+  # In this version of the script, `compression_ratio_test` is run only if you pass in the "-r" flag.
+  # This is because the `refcompress` executable provided to you is compiled on ieng6 and will not run on other platforms.
+  # So this GNU/BSD `stat` detection is not that useful for you since we know ieng6 has GNU `stat`.
+  # (I do run `refcompress` on a certain platform that has BSD `stat` :-P)
   # See https://en.wikipedia.org/wiki/GNU_toolchain & https://wiki.freebsd.org/BSDToolchain
-  # The main reason why there are different toolchains? Different licensing philosophies. 
-  # For more info on BSD vs GNU if you are interested: 
-  # https://www.freebsd.org/doc/en/articles/bsdl-gpl/article.html
-  # http://www.gnu.org/licenses/bsd.en.html
   if stat --version 1>/dev/null 2>&1; then
     # GNU `stat`
-    local ref_cmp_filesize="$(stat -c%s "${TMP_DIR}/${REF_CMP}")"
-    local your_cmp_filesize="$(stat -c%s "${TMP_DIR}/${YOUR_CMP}")"
+    ref_cmp_filesize="$(stat -c%s "${TMP_DIR}/${REF_CMP}")"
+    your_cmp_filesize="$(stat -c%s "${TMP_DIR}/${YOUR_CMP}")"
   else
     # BSD `stat`
-    local ref_cmp_filesize="$(stat -f%z "${TMP_DIR}/${REF_CMP}")"
-    local your_cmp_filesize="$(stat -f%z "${TMP_DIR}/${YOUR_CMP}")"
+    ref_cmp_filesize="$(stat -f%z "${TMP_DIR}/${REF_CMP}")"
+    your_cmp_filesize="$(stat -f%z "${TMP_DIR}/${YOUR_CMP}")"
   fi
   # The actual comparison, `-gt` means greater than
   if [[ ${ref_cmp_filesize} -gt ${your_cmp_filesize} ]]; then
@@ -80,62 +75,66 @@ compression_ratio_test() {
   fi
 }
 
-is_on_ieng6() {
-  return ${ON_IENG6}
-}
-
 # This function removes the generated files
 cleanup () {
-  rm "${INPUT_DIR}/${RAND_TXT}" "${INPUT_DIR}/${RAND_BIN}"
-  rm -rf "${TMP_DIR}"
-  # ehco -e "${TMP_DIR}"
+  rm "${INPUT_DIR}/${RAND_TXT}" "${INPUT_DIR}/${RAND_BIN}" 1>/dev/null 2>&1
+  rm -rf "${TMP_DIR}" 1>/dev/null 2>&1
   echo "Temporary files generated by the tests deleted. "
-  echo -e "${TXT_YELLOW}WARNING: THIS SCRIPT IS PROVIDED FOR YOUR REFERENCE ONLY. ${TXT_RESET}"
-  echo -e "${TXT_YELLOW}IT DOES NOT COME WITH ANY GUARANTEE. ${TXT_RESET}"
-  echo -e "${TXT_YELLOW}IT IS YOUR RESPONSIBILITY TO MAKE SURE YOUR CODE WORKS CORRECTLY. ${TXT_RESET}"
+  echo -e "${TXT_YELLOW}WARNING: THIS SCRIPT IS PROVIDED FOR YOUR CONVENIENCE ONLY. ${TXT_RESET}"
+  echo -e "${TXT_YELLOW}IT IS PROVIDED WITHOUT ANY GUARANTEE. ${TXT_RESET}"
+  echo -e "${TXT_YELLOW}YOU ARE RESPONSIBLE FOR MAKING SURE THAT YOUR CODE WORKS CORRECTLY. ${TXT_RESET}"
 }
-trap cleanup EXIT # trap is a nice feature. Upon EXIT, cleanup function is run
+trap cleanup EXIT # trap is a nice feature. Upon EXIT, this cleanup function is run
 
-# use `make` to compile your code, check return code for failure
-if ! make; then
-    echo -e "${TXT_RED}Failed to compile using make. ${TXT_RESET} No test was run. "
+## The script starts here ##
+
+echo -e "${TXT_CYAN}UCSD CSE100 Huffman Tester${TXT_RESET}"
+
+# check command line parameters
+if [ $# -eq 0 ]; then
+  ENABLE_RATIO_TEST=false
+  echo -e "${TXT_CYAN}Compression Ratio Test Not Enabled${TXT_RESET}"
+elif [[ $# -eq 1 && $1 == "-r" ]]; then
+  ENABLE_RATIO_TEST=true
+  echo -e "${TXT_CYAN}Compression Ratio Test Enabled${TXT_RESET}"
+else
+  echo -e "$0: error: invalid command option given"
+  echo "Usage: ty_tester.sh [-r]"
+  echo "Please read the README and this script for details. "
+  exit 1
+fi
+
+# Use `make` to compile your code, check return code for failure
+if ! make 1>/dev/null 2>&1; then
+    echo -e "${TXT_RED}Failed to compile your code using make. ${TXT_RESET} Tests not run. "
     exit 1 # unsuccessful
 fi
-echo -e "${TXT_GREEN}Compiled successfully using make. ${TXT_RESET}"
+echo -e "Compiled your code successfully using make. "
 
-# generates a random binary input file and a random text input file for testing 
-if is_on_ieng6; then
-  echo -e "${TXT_CYAN}NOTE: On ieng6, the random files generated are of smaller sizes for performance reason. ${TXT_RESET}"
-  generate_random_input_files 5242880 # since ieng6 is slow
-else
-  generate_random_input_files 10485760
-  echo -e "${TXT_CYAN}NOTE: Compression ratio tests will not be run since you are not on ieng6. ${TXT_RESET}"
-fi
+# Generates a random binary input file and a random text input file for testing
+generate_random_input_files ${RAND_SIZE}
 
-# loop through all the input files found in in the input file directory
+# Loop through all the input files found in the input file directory
 for input_file in "${INPUT_DIR}"/*; do
   echo -ne "Testing \"${input_file}\"... \t "
-  # perform `compress` and `uncompress`, suppress output
-  ./compress "${input_file}" "${TMP_DIR}/${YOUR_CMP}" &> /dev/null
-  ./uncompress "${TMP_DIR}/${YOUR_CMP}" "${TMP_DIR}/${YOUR_UNCMP}" &> /dev/null
-  # since `refcompress` is compiled and run on ieng6
-  if is_on_ieng6; then
-    # perform `refcompress`, suppress output
-    ./refcompress "${input_file}" "${TMP_DIR}/${REF_CMP}" &> /dev/null
-    # ./refuncompress "${TMP_DIR}/${REF_CMP}" "${TMP_DIR}/${REF_UNCMP}" &> /dev/null
-  fi
-  # `cmp`'s return code indicates if the files are identical
-  if cmp -s "${input_file}" "${TMP_DIR}/${YOUR_UNCMP}"; then
-    # since `refcompress` is compiled and run on ieng6
-    if is_on_ieng6; then
+  # Generate your compressed and uncompressed version of input_file
+  ./compress "${input_file}" "${TMP_DIR}/${YOUR_CMP}" 1>/dev/null 2>&1
+  ./uncompress "${TMP_DIR}/${YOUR_CMP}" "${TMP_DIR}/${YOUR_UNCMP}" 1>/dev/null 2>&1
+
+  # Accuracy Test: `cmp`'s return code indicates if the uncompressed file is identical to the original
+  if ! cmp -s "${input_file}" "${TMP_DIR}/${YOUR_UNCMP}"; then
+    echo -e "[${TXT_RED}INACCURATE${TXT_RESET}]"
+    echo -e "${TXT_RED}Note: Did not finish all tests. ${TXT_RESET}"
+    exit 1 # unsuccessful
+  else
+    # Compression Ratio Test
+    if [[ "$ENABLE_RATIO_TEST" = true ]]; then
+      # generate `refcompress` compressed version of input_file for compression ratio test
+      ./refcompress "${input_file}" "${TMP_DIR}/${REF_CMP}" 1>/dev/null 2>&1
       compression_ratio_test
     else
       echo -e "[${TXT_YELLOW}ACCURATE${TXT_RESET}]"
     fi
-  else
-    echo -e "[${TXT_RED}FAILED${TXT_RESET}]"
-    echo -e "${TXT_RED}Not all tests were run. ${TXT_RESET}"
-    exit 1 # unsuccessful
   fi
 done
 
