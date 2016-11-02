@@ -124,7 +124,7 @@ for input_file in "${INPUT_DIR}"/*; do
   # Accuracy Test: `cmp`'s return code indicates if the uncompressed file is identical to the original
   if ! cmp -s "${input_file}" "${TMP_DIR}/${YOUR_UNCMP}"; then
     echo -e "[${TXT_RED}INACCURATE${TXT_RESET}]"
-    echo -e "${TXT_RED}Note: Did not finish all tests. ${TXT_RESET}"
+    echo -e "${TXT_RED}Note: Exiting early. Did not finish running all tests. ${TXT_RESET}"
     exit 1 # unsuccessful
   else
     # Compression Ratio Test
@@ -138,5 +138,5 @@ for input_file in "${INPUT_DIR}"/*; do
   fi
 done
 
-echo "All tests finished. "
+echo "Finished running all tests. Check above for results. "
 exit 0 # successful
